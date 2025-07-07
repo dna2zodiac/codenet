@@ -293,3 +293,16 @@ class DatabaseManager:
                   SELECT DISTINCT hid FROM file_hash_mapping
                )
          ''')
+
+if __name__ == "__main__":
+   import sys
+   from .sysfs import IterateFiles
+   from .sysfs import BuildExclusioinFilter, BuildGitignoreFilter
+   db_filepath = sys.argv[1]
+   repo_filepath = sys.argv[2]
+   db = DatabaseManager(db_filepath)
+   f1 = BuildExclusioinFilter(['.git'])
+   f2 = BuildGitignoreFilter('.gitignore')
+   file_list = IterateFiles(repo_filepath, lambda x, y: f1(x, y) or f2(x, y))
+   print(file_list)
+   db.UpdateRepository(repo_filepath, file_list)
