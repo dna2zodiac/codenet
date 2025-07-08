@@ -179,9 +179,26 @@ class DatabaseManager:
                FOREIGN KEY (hid) REFERENCES file_hashes(hid)
             )
          ''')
+         # File tokens table
+         cursor.execute('''
+            CREATE TABLE IF NOT EXISTS file_tokens (
+                tid INTEGER PRIMARY KEY AUTOINCREMENT,
+                pid INTEGER,
+                type INTEGER NOT NULL,
+                lrow INTEGER NOT NULL,
+                lcol INTEGER NOT NULL,
+                hid INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                langid INTEGER NOT NULL,
+                langv INTEGER,
+                FOREIGN KEY (pid) REFERENCES file_tokens(tid),
+                FOREIGN KEY (hid) REFERENCES file_hash(hid)
+            )
+         ''')
          # Create indexes for better performance
          cursor.execute('CREATE INDEX IF NOT EXISTS idx_filepath ON files(filepath)')
          cursor.execute('CREATE INDEX IF NOT EXISTS idx_filehash ON file_hashes(filehash)')
+         cursor.execute('CREATE INDEX IF NOT EXISTS idx_tokenname ON file_tokens(name)')
 
       # Update config
       current_timestamp = datetime.now()
@@ -289,6 +306,12 @@ class DatabaseManager:
       with self.GetCursor() as cursor:
          cursor.execute('''
                DELETE FROM file_hashes
+               WHERE hid NOT IN (
+                  SELECT DISTINCT hid FROM file_hash_mapping
+               )
+         ''')
+         cursor.execute('''
+               DELETE FROM file_tokens
                WHERE hid NOT IN (
                   SELECT DISTINCT hid FROM file_hash_mapping
                )
