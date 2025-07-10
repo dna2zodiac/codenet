@@ -1,13 +1,16 @@
-import string
-from .common import Token, TokenType, TokenLang, TokenExtract, TokenExtractEnv, FindNext
-
-def _MarkLineNumber(env, out):
-   t = Token("\n", TokenType.BR, env.L, env.C)
-   out.append(t)
-   env.i += 1
-   env.L += 1
-   env.C = 0
-   return True
+from .common import (
+   Token,
+   TokenType,
+   TokenLang,
+   FindNext,
+)
+from .extract import (
+   TokenExtract,
+   TokenExtractEnv,
+   ExtractQuote,
+   MergeSymUnderline,
+   MarkLineNumber,
+)
 
 def _MergeIndent(env, out):
    if env.i != 0 and env.GetToken(env.i-1) != '\n':
@@ -37,28 +40,6 @@ def _MergeIndent(env, out):
    t.data = count
    env.i += len(t.N)
    out.append(t)
-   env.C = C
-   return True
-
-def _IsSym(token):
-   return token not in string.punctuation and not token.isspace() and token != '\n'
-def _MergeSym(env, out):
-   L = env.L
-   C = env.C
-   if env.i != 0 and out[-1].T == TokenType.SYM and (out[-1].N == '_' or _IsSym(out[-1].N)):
-      t = out[-1]
-      t.N += '_'
-   else:
-      t = Token('_', TokenType.SYM, L, C)
-      out.append(t)
-   C += 1
-   if env.i+1 < env.n:
-      token = env.GetToken(env.i+1)
-      if _IsSym(token):
-         t.N += token
-         C += len(token)
-         env.i += 1
-   env.i += 1
    env.C = C
    return True
 
@@ -98,37 +79,6 @@ def _ExtractTriquote(env, out):
    return True
 
 
-def _ExtractQuote(env, out):
-   start_token = env.GetToken(env.i)
-   skip = False
-   L = env.L
-   C = env.C
-   t = Token(start_token, TokenType.CONST, L, C)
-   for i in range(env.i+1, env.n):
-      token = env.GetToken(i)
-      if token == '\n':
-         env.C = C
-         out.append(t)
-         env.i = i+1
-         return True
-      t.N += token
-      C += len(token)
-      if skip:
-         skip = False
-         continue
-      if token == '\\':
-         skip = True
-      elif token == start_token:
-         env.C = C
-         out.append(t)
-         env.i = i+1
-         return True
-   env.C = C
-   out.append(t)
-   env.i = env.n
-   return True
-
-
 def _ExtractLineComment(env, out):
    C = env.C
    t = Token('#', TokenType.COMMENT, env.L, C)
@@ -149,13 +99,13 @@ def _ExtractLineComment(env, out):
 
 extract_map_root = {
    # TODO: f-string and r-string
-   "'": [_ExtractTriquote, _ExtractQuote],
-   '"': [_ExtractTriquote, _ExtractQuote],
+   "'": [_ExtractTriquote, ExtractQuote],
+   '"': [_ExtractTriquote, ExtractQuote],
    "#": [_ExtractLineComment],
-   "_": [_MergeSym],
    " ": [_MergeIndent],
    "\t": [_MergeIndent],
-   "\n": [_MarkLineNumber]
+   "\n": [MarkLineNumber],
+   "_": [MergeSymUnderline],
 }
 
 

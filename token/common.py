@@ -75,54 +75,8 @@ def TokenizeText(text):
    return tokens
 
 
-def _ExtractDefaultFn(env, out):
-   token = env.GetToken(env.i)
-   if token == '\n':
-      env.L += 1
-      env.C = 0
-   else:
-      t = Token(token, TokenType.SYM, env.L, env.C)
-      env.C = len(token)
-      out.append(t)
-   env.i += 1
-
-class TokenExtractEnv(object):
-   def __init__(self, tokens, extract_map_root, extract_default_fn=_ExtractDefaultFn):
-      self.L = 0
-      self.C = 0
-      self.i = 0
-      self.n = len(tokens)
-      self.tokens = tokens
-      self.extract_stack = [extract_map_root]
-      self.extract_default_fn = extract_default_fn
-
-   def HasNext(self):
-      return self.i < self.n
-
-   def GetToken(self, index):
-      return self.tokens[index]
-
-   def GetExtractMap(self):
-      return self.extract_stack[-1]
-
-
-def TokenExtract(env):
-   env.L = 0
-   env.C = 0
-   out = []
-   while env.HasNext():
-      token = env.GetToken(env.i)
-      extract_map = env.GetExtractMap()
-      matched = False
-      if token in extract_map:
-         for fn in extract_map[token]:
-            ret = fn(env, out)
-            if ret:
-               matched = True
-               break
-      if not matched:
-         env.extract_default_fn(env, out)
-   return out
+def IsSym(token):
+   return token not in string.punctuation and not token.isspace()
 
 
 def FindNext(env, token0, start_index=0):
