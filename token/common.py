@@ -38,7 +38,7 @@ class Token(object):
       return f'({self.N},{self.T},#{self.L}-#{self.C})'
 
 
-def TokenizeText(text):
+def TokenizeText(text: str):
    """
    Parse text into tokens: punctuation, whitespace, and word characters.
 

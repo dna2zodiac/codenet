@@ -4,6 +4,7 @@ from .common import (
    TokenLang,
    FindNext,
 )
+
 from .extract import (
    TokenExtract,
    TokenExtractEnv,
@@ -11,10 +12,10 @@ from .extract import (
    MergeSymUnderline,
    MarkLineNumber,
 )
-from .decorate import (
-   TokenDecorate,
-   TokenDecorateEnv,
-)
+from .decorate import \
+   TokenDecorate,     \
+   TokenDecorateEnv
+
 
 def _MergeIndent(env, out):
    if env.i != 0 and env.GetToken(env.i-1) != '\n':
@@ -28,7 +29,7 @@ def _MergeIndent(env, out):
    L = env.L
    C = env.C
    t = Token(env.GetToken(env.i), TokenType.INDENT, L, C)
-   count = 0
+   count = 1
    for i in range(env.i+1, env.n):
       token = env.GetToken(i)
       if token == ' ':
@@ -120,31 +121,52 @@ def Extract(tokens):
 
 def _DecorateFrom(env, scope):
    t0 = env.GetToken(env.i)
-   t = Token("import", TokenType.BLOCK, t0.L, t0.C, TokenLang.PYTHON, 2000, data=[])
+   data = {}
+   t = Token("import", TokenType.BLOCK, t0.L, t0.C, TokenLang.PYTHON, 2000, data=data)
+   data_path = []
+   data["path"] = data_path
    for i in range(env.i+1, env.n):
       token = env.GetToken(i)
       if token.N == 'import':
          env.i = i+1
          break
-      t.data.append(token)
+      if token.T != TokenType.SPACE:
+         data_path.append(token)
    return _DecorateImport(env, scope, t)
 
 
 def _DecorateImport(env, scope, t=None):
    if not t:
       t0 = env.GetToken(env.i)
-      t = Token("import", TokenType.BLOCK, t0.L, t0.C, TokenLang.PYTHON, 2000, data=[])
+      t = Token("import", TokenType.BLOCK, t0.L, t0.C, TokenLang.PYTHON, 2000, data={})
+   data = t.data
    bracket = 0
+   escbr = 0
+   data_sym = []
+   data["sym"] = data_sym
    for i in range(env.i+1, env.n):
       token = env.GetToken(i)
-      if token.N == '\n' and bracket == 0:
-         env.i = i+1
-         break
-      t.data.append(token)
+      if token.T == TokenType.BR:
+         if bracket == 0 and escbr == 0:
+            env.i = i+1
+            break
+         escbr = 0
       if token.N == '(':
          bracket += 1
+         continue
       elif token.N == ')':
          bracket -= 1
+         continue
+      elif token.N == '\\': # TODO: check [\\ \n]
+         escbr = 1
+         continue
+      if (
+         token.T != TokenType.SPACE and
+         token.T != TokenType.BR and
+         token.T != TokenType.INDENT and
+         token.T != TokenType.COMMENT
+      ):
+         data_sym.append(token)
    scope.tokens.append(t)
    return True, False, False
 
