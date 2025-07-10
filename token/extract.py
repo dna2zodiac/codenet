@@ -7,7 +7,7 @@ def _ExtractDefaultFn(env, out):
       env.C = 0
    else:
       t = Token(token, TokenType.SYM, env.L, env.C)
-      env.C = len(token)
+      env.C += len(token)
       out.append(t)
    env.i += 1
 
