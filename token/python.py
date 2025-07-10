@@ -118,9 +118,22 @@ def Extract(tokens):
    return TokenExtract(env)
 
 
-def _DecorateImport(env, scope):
+def _DecorateFrom(env, scope):
    t0 = env.GetToken(env.i)
    t = Token("import", TokenType.BLOCK, t0.L, t0.C, TokenLang.PYTHON, 2000, data=[])
+   for i in range(env.i+1, env.n):
+      token = env.GetToken(i)
+      if token.N == 'import':
+         env.i = i+1
+         break
+      t.data.append(token)
+   return _DecorateImport(env, scope, t)
+
+
+def _DecorateImport(env, scope, t=None):
+   if not t:
+      t0 = env.GetToken(env.i)
+      t = Token("import", TokenType.BLOCK, t0.L, t0.C, TokenLang.PYTHON, 2000, data=[])
    bracket = 0
    for i in range(env.i+1, env.n):
       token = env.GetToken(i)
@@ -137,7 +150,7 @@ def _DecorateImport(env, scope):
 
 
 decorate_map_root = {
-   "from": [],
+   "from": [_DecorateFrom],
    "import": [_DecorateImport],
    "class": [],
    "def": [],
