@@ -3,13 +3,17 @@ from enum import Enum
 
 
 class TokenType(Enum):
-   SYM   = 0
-   MOD   = 1
-   KLASS = 2
-   FUNC  = 3
-   VAR   = 4
-   CONST = 5
-   UNK   = 9
+   SYM     = 0
+   MOD     = 1
+   KLASS   = 2
+   FUNC    = 3
+   VAR     = 4
+   CONST   = 5
+   COMMENT = 6
+   UNK     = 9
+   SPACE   = 100
+   BR      = 101
+   INDENT  = 102
 
 
 class TokenLang(Enum):
@@ -29,7 +33,7 @@ class Token(object):
       self.data = data
 
    def __repr__(self):
-      return f'({self.N},{self.T},{self.L}-#{self.C})'
+      return f'({self.N},{self.T},#{self.L}-#{self.C})'
 
 
 def TokenizeText(text):
