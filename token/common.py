@@ -14,6 +14,8 @@ class TokenType(Enum):
    SPACE   = 100
    BR      = 101
    INDENT  = 102
+   BLOCK   = 103
+   KEYWORD = 104
 
 
 class TokenLang(Enum):

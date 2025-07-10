@@ -11,6 +11,10 @@ from .extract import (
    MergeSymUnderline,
    MarkLineNumber,
 )
+from .decorate import (
+   TokenDecorate,
+   TokenDecorateEnv,
+)
 
 def _MergeIndent(env, out):
    if env.i != 0 and env.GetToken(env.i-1) != '\n':
@@ -114,6 +118,43 @@ def Extract(tokens):
    return TokenExtract(env)
 
 
+def _DecorateImport(env, scope):
+   t0 = env.GetToken(env.i)
+   t = Token("import", TokenType.BLOCK, t0.L, t0.C, TokenLang.PYTHON, 2000, data=[])
+   bracket = 0
+   for i in range(env.i+1, env.n):
+      token = env.GetToken(i)
+      if token.N == '\n' and bracket == 0:
+         env.i = i+1
+         break
+      t.data.append(token)
+      if token.N == '(':
+         bracket += 1
+      elif token.N == ')':
+         bracket -= 1
+   scope.tokens.append(t)
+   return True, False, False
+
+
+decorate_map_root = {
+   "from": [],
+   "import": [_DecorateImport],
+   "class": [],
+   "def": [],
+   "if": [],
+   "elif": [],
+   "else": [],
+   "while": [],
+   "for": [],
+   "with": [],
+}
+
+
+def Decorate(tokens):
+   env = TokenDecorateEnv(tokens, decorate_map_root)
+   return TokenDecorate(env)
+
+
 if __name__ == "__main__":
    import os
    import sys
@@ -133,3 +174,8 @@ if __name__ == "__main__":
          print(L[-1].L, L)
          L = [token]
    if len(L) > 0: print(L[-1].L, L)
+
+   print('-----------------------------')
+   tree = Decorate(tokens)
+   for token in tree:
+      print(token.L, token.C, token, token.data)
