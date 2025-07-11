@@ -31,7 +31,9 @@ class TokenDecorateEnv(object):
       return self.decorate_stack[-1]
 
 
-def _TokenDecorate(env, i, j):
+def TokenDecorate(env, i=0, j=-1):
+   if j < 0:
+      j = env.n - 1
    scope = TokenScope([], {})
    if env.scope_stack:
       env.scope_stack.append(scope)
@@ -44,20 +46,10 @@ def _TokenDecorate(env, i, j):
       matched = False
       if token.N in decorate_map:
          for fn in decorate_map[token.N]:
-            ret, out_of_scope, enter_sub_scope = fn(env, scope)
+            ret = fn(env, scope)
             if ret:
                matched = True
-               if out_of_scope:
-                  env.i = j+1
-                  break
-               elif enter_sub_scope:
-                  TokenDecorate(env, env.i, j)
-                  break
       if not matched:
          env.decorate_default_fn(env, scope)
    env.scope_stack.pop()
-   return scope.tokens
-
-
-def TokenDecorate(env):
-   return _TokenDecorate(env, 0, env.n)
+   return scope

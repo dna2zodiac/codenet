@@ -16,6 +16,7 @@ class TokenType(Enum):
    INDENT  = 102
    BLOCK   = 103
    KEYWORD = 104
+   STRING  = 105
 
 
 class TokenLang(Enum):

@@ -13,6 +13,7 @@ from .extract import (
    MarkLineNumber,
 )
 from .decorate import \
+   TokenScope,        \
    TokenDecorate,     \
    TokenDecorateEnv
 
@@ -56,7 +57,7 @@ def _ExtractTriquote(env, out):
    C = env.C
    if env.i+2 >= env.n or env.GetToken(env.i+1) != start_token or env.GetToken(env.i+2) != start_token:
       return False
-   t = Token(start_token*3, TokenType.CONST, L, C)
+   t = Token(start_token*3, TokenType.STRING, L, C)
    for i in range(env.i+3, env.n):
       token = env.GetToken(i)
       if token == '\n':
@@ -168,13 +169,113 @@ def _DecorateImport(env, scope, t=None):
       ):
          data_sym.append(token)
    scope.tokens.append(t)
-   return True, False, False
+   return True
+
+
+bracket_pairs = {"(": ")", "[": "]", "{": "}",}
+def _FindBracketEnd(env, i):
+   left = bracket_pairs.keys()
+   right = bracket_pairs.values()
+   bstack = [bracket_pairs[env.GetToken(i).N]]
+   for j in range(i+1, env.n):
+      token = env.GetToken(j)
+      if token.N in left:
+         bstack.append(bracket_pairs[token.N])
+      elif token.N in right:
+         if bstack[-1] == token.N:
+            bstack.pop()
+         else:
+            # TODO: bracket miss match
+            return j+1
+         if len(bstack) == 0:
+            return j+1
+   return env.n
+
+
+def _IsEmptyLine(env, i):
+   empty = True
+   for j in range(i+1, env.n):
+      token = env.GetToken(j)
+      if token.N == '\n':
+         return True, j+1
+      if token.T == TokenType.SPACE:
+         continue
+      if token.T == TokenType.BR:
+         continue
+      if token.T == TokenType.INDENT:
+         continue
+      if token.T == TokenType.COMMENT:
+         continue
+      if token.T == TokenType.STRING:
+         continue
+      return False, i
+   return True, env.n
+
+
+def _GetScopeJ(env, i):
+   # TODO: pick ahead @annotations
+   #       now we assume @annotation is a BLOCK
+   # examples:
+   # - print \ \n ("hello")
+   # - if (True or \n False): ...
+   # above no need indent after \n
+   j = i+1
+   bracket_left = bracket_pairs.keys()
+   while j < env.n:
+      token = env.GetToken(j)
+      if token.N in bracket_left:
+         j = _FindBracketEnd(env, j)
+         continue
+      if token.N == '\\': # \ \n
+         j += 2
+         continue
+      if token.N == '\n':
+         j += 1
+         break
+      j += 1
+   indent_base = -1
+   while j < env.n:
+      is_empty_line, nextj = _IsEmptyLine(env, j)
+      if is_empty_line:
+         j = nextj
+         continue
+
+      token = env.GetToken(j)
+      if indent_base < 0 and token.T == TokenType.INDENT:
+         indent_base = token.data
+         j += 1
+      elif (token.T == TokenType.INDENT and indent_base > token.data) or token.T != TokenType.INDENT:
+         return j-1
+
+      while j < env.n:
+         token = env.GetToken(j)
+         if token.N in bracket_left:
+            j = _FindBracketEnd(env, j)
+         elif token.N == '\\':
+            j += 2
+         elif token.N == '\n':
+            j += 1
+            break
+         else:
+            j += 1
+   return env.n
+
+def _DecorateClass(env, scope):
+   j = _GetScopeJ(env, env.i)
+   token = env.GetToken(env.i)
+   subscope = TokenDecorate(env, env.i+1, j-1)
+   class_data = { "children": subscope.tokens }
+   t = Token("class", TokenType.KLASS, token.L, token.C, TokenLang.PYTHON, 2, data=class_data)
+   scope.tokens.append(t)
+   env.i = j
 
 
 decorate_map_root = {
+   # TODO: __import__
    "from": [_DecorateFrom],
    "import": [_DecorateImport],
-   "class": [],
+   # TODO: @annotation
+   "class": [_DecorateClass],
    "def": [],
    "if": [],
    "elif": [],
@@ -187,7 +288,7 @@ decorate_map_root = {
 
 def Decorate(tokens):
    env = TokenDecorateEnv(tokens, decorate_map_root)
-   return TokenDecorate(env)
+   return TokenDecorate(env).tokens
 
 
 if __name__ == "__main__":

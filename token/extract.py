@@ -55,7 +55,7 @@ def ExtractQuote(env, out):
    skip = False
    L = env.L
    C = env.C
-   t = Token(start_token, TokenType.CONST, L, C)
+   t = Token(start_token, TokenType.STRING, L, C)
    for i in range(env.i+1, env.n):
       token = env.GetToken(i)
       if token == '\n':
