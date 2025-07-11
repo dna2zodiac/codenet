@@ -10,6 +10,8 @@ class TokenType(Enum):
    VAR     = 4
    CONST   = 5
    COMMENT = 6
+   MARKER  = 7
+   OTHER   = 8
    UNK     = 9
    SPACE   = 100
    BR      = 101

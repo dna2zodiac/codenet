@@ -374,11 +374,35 @@ def _DecorateWith(env, scope):
    return True
 
 
+def _DecorateAnnotation(env, scope):
+   t0 = env.GetToken(env.i)
+   data_path = []
+   data = {
+      "path": data_path,
+      "param": None,
+   }
+   t = Token("@", TokenType.MARKER, t0.L, t0.C, TokenLang.PYTHON, 2, data=data)
+   for i in range(env.i+1, env.n):
+      token = env.GetToken(i)
+      if token.N == '(':
+         j = _FindBracketEnd(env, i)
+         data["param"] = [env.GetToken(z) for z in range(i+1, j)]
+         env.i = j+1
+         break
+      if token.N == '\n':
+         break
+      data_path.append(token)
+      env.i = i+1
+   scope.tokens.append(t)
+   return True
+
+
 decorate_map_root = {
    # TODO: __import__
    "from": [_DecorateFrom],
    "import": [_DecorateImport],
    # TODO: @annotation
+   "@": [_DecorateAnnotation],
    "class": [_DecorateClass],
    "def": [_DecorateDef],
    "if": [_DecorateIf],
@@ -426,4 +450,6 @@ if __name__ == "__main__":
             if type(token.data) == dict:
                if 'children' in token.data:
                   dump(token.data["children"], indent+1)
+               else:
+                  print(prefix + '-- ', token.data)
    dump(tree)
