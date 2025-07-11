@@ -3,6 +3,7 @@ from .common import (
    TokenType,
    TokenLang,
    FindNext,
+   IsBetweenEmptyD,
 )
 
 from .extract import (
@@ -221,6 +222,9 @@ def _GetScopeJ(env, i):
    # above no need indent after \n
    j = i+1
    bracket_left = bracket_pairs.keys()
+   block_i = -1
+   balance = 0
+   inline = False
    while j < env.n:
       token = env.GetToken(j)
       if token.N in bracket_left:
@@ -230,9 +234,24 @@ def _GetScopeJ(env, i):
          j += 2
          continue
       if token.N == '\n':
+         if block_i < 0:
+            return -1
+         if not IsBetweenEmptyD(env, block_i, j): # TODO: handle if ...: \ \n #comment \n
+            inline = True
          j += 1
          break
+      if token.N == 'lambda': # process if lambda x: 0: ...
+         balance += 1
+      elif token.N == ':':
+         if balance == 0:
+            block_i = j
+         else:
+            balance -= 1
       j += 1
+
+   if inline:
+      return j
+
    indent_base = -1
    while j < env.n:
       is_empty_line, nextj = _IsEmptyLine(env, j)
@@ -260,14 +279,99 @@ def _GetScopeJ(env, i):
             j += 1
    return env.n
 
+
 def _DecorateClass(env, scope):
    j = _GetScopeJ(env, env.i)
    token = env.GetToken(env.i)
    subscope = TokenDecorate(env, env.i+1, j-1)
-   class_data = { "children": subscope.tokens }
-   t = Token("class", TokenType.KLASS, token.L, token.C, TokenLang.PYTHON, 2, data=class_data)
+   data = { "children": subscope.tokens }
+   t = Token("class", TokenType.KLASS, token.L, token.C, TokenLang.PYTHON, 2, data=data)
    scope.tokens.append(t)
    env.i = j
+   return True
+
+
+def _DecorateDef(env, scope):
+   j = _GetScopeJ(env, env.i)
+   token = env.GetToken(env.i)
+   subscope = TokenDecorate(env, env.i+1, j-1)
+   data = { "children": subscope.tokens }
+   t = Token("def", TokenType.FUNC, token.L, token.C, TokenLang.PYTHON, 2, data=data)
+   scope.tokens.append(t)
+   env.i = j
+   return True
+
+
+def _DecorateIf(env, scope):
+   j = _GetScopeJ(env, env.i)
+   if j < 0:
+      return False
+   token = env.GetToken(env.i)
+   subscope = TokenDecorate(env, env.i+1, j-1)
+   data = { "children": subscope.tokens }
+   t = Token("if", TokenType.BLOCK, token.L, token.C, TokenLang.PYTHON, 2, data=data)
+   scope.tokens.append(t)
+   env.i = j
+   return True
+
+
+def _DecorateElif(env, scope):
+   j = _GetScopeJ(env, env.i)
+   token = env.GetToken(env.i)
+   subscope = TokenDecorate(env, env.i+1, j-1)
+   data = { "children": subscope.tokens }
+   t = Token("elif", TokenType.BLOCK, token.L, token.C, TokenLang.PYTHON, 2, data=data)
+   scope.tokens.append(t)
+   env.i = j
+   return True
+
+
+def _DecorateElse(env, scope):
+   j = _GetScopeJ(env, env.i)
+   if j < 0:
+      return False
+   token = env.GetToken(env.i)
+   subscope = TokenDecorate(env, env.i+1, j-1)
+   data = { "children": subscope.tokens }
+   t = Token("else", TokenType.BLOCK, token.L, token.C, TokenLang.PYTHON, 2, data=data)
+   scope.tokens.append(t)
+   env.i = j
+   return True
+
+
+def _DecorateWhile(env, scope):
+   j = _GetScopeJ(env, env.i)
+   token = env.GetToken(env.i)
+   subscope = TokenDecorate(env, env.i+1, j-1)
+   data = { "children": subscope.tokens }
+   t = Token("while", TokenType.BLOCK, token.L, token.C, TokenLang.PYTHON, 2, data=data)
+   scope.tokens.append(t)
+   env.i = j
+   return True
+
+
+def _DecorateFor(env, scope):
+   j = _GetScopeJ(env, env.i)
+   if j < 0:
+      return False
+   token = env.GetToken(env.i)
+   subscope = TokenDecorate(env, env.i+1, j-1)
+   data = { "children": subscope.tokens }
+   t = Token("for", TokenType.BLOCK, token.L, token.C, TokenLang.PYTHON, 2, data=data)
+   scope.tokens.append(t)
+   env.i = j
+   return True
+
+
+def _DecorateWith(env, scope):
+   j = _GetScopeJ(env, env.i)
+   token = env.GetToken(env.i)
+   subscope = TokenDecorate(env, env.i+1, j-1)
+   data = { "children": subscope.tokens }
+   t = Token("with", TokenType.BLOCK, token.L, token.C, TokenLang.PYTHON, 2, data=data)
+   scope.tokens.append(t)
+   env.i = j
+   return True
 
 
 decorate_map_root = {
@@ -276,13 +380,13 @@ decorate_map_root = {
    "import": [_DecorateImport],
    # TODO: @annotation
    "class": [_DecorateClass],
-   "def": [],
-   "if": [],
-   "elif": [],
-   "else": [],
-   "while": [],
-   "for": [],
-   "with": [],
+   "def": [_DecorateDef],
+   "if": [_DecorateIf],
+   "elif": [_DecorateElif],
+   "else": [_DecorateElse],
+   "while": [_DecorateWhile],
+   "for": [_DecorateFor],
+   "with": [_DecorateWith],
 }
 
 
@@ -313,5 +417,13 @@ if __name__ == "__main__":
 
    print('-----------------------------')
    tree = Decorate(tokens)
-   for token in tree:
-      print(token.L, token.C, token, token.data)
+
+   def dump(tokens, indent=0):
+      prefix = '|' + '-- ' * indent
+      for token in tokens:
+         print(prefix, token.L+1, token.C+1, token)
+         if token.data:
+            if type(token.data) == dict:
+               if 'children' in token.data:
+                  dump(token.data["children"], indent+1)
+   dump(tree)

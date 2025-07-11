@@ -96,6 +96,21 @@ def FindPrev(env, token0, start_index):
    return -1
 
 
+def IsBetweenEmptyD(env, i, j):
+   for z in range(i+1, j):
+      token = env.GetToken(z)
+      if token.T == TokenType.COMMENT:
+         continue
+      if token.T == TokenType.SPACE:
+         continue
+      if token.T == TokenType.BR:
+         continue
+      if token.T == TokenType.INDENT:
+         continue
+      return False
+   return True
+
+
 if __name__ == "__main__":
    # Test with your example
    import sys
