@@ -280,15 +280,103 @@ def _GetScopeJ(env, i):
    return env.n
 
 
+def _AbsorbDecorator(data, scope, parent_scope):
+   j = len(parent_scope.tokens)-1
+   last_decorator_j = -1
+   while j >= 0:
+      token = parent_scope.tokens[j]
+      j -= 1
+      if token.T == TokenType.SPACE:
+         continue
+      if token.T == TokenType.COMMENT:
+         continue
+      if token.T == TokenType.BR:
+         continue
+      if token.N == '@':
+         last_decorator_j = j+1
+         if "decorator" not in data:
+            data["decorator"] = []
+         decorator = data["decorator"]
+         decorator.append(token)
+         continue
+      break
+   if last_decorator_j >= 0:
+      parent_scope.tokens = parent_scope.tokens[:j] + [t for t in parent_scope.tokens[j:] if t.N != '@']
+   decorator = data.get("decorator", None)
+   if decorator:
+      decorator.reverse()
+
+
+def _ParseClassScope(data, scope):
+   stat = 0
+   for token in scope.tokens:
+      if token.T == TokenType.SPACE:
+         continue
+      if token.T == TokenType.BR:
+         continue
+      if token.T == TokenType.INDENT:
+         continue
+      if token.T == TokenType.COMMENT:
+         continue
+      if token.N == '\\':
+         continue
+
+      if stat == 0:
+         data["name"] = token.N
+         stat = 1
+         continue
+
+      if stat == 1 and token.N == ':':
+         break
+
+      if stat == 1 and token.N == '(':
+         stat = 2
+         continue
+
+      if stat == 2:
+         if token.N == ')':
+            break
+         elif token.N == ',':
+            data["parent"].append([])
+         else:
+            if "parent" not in data:
+               data["parent"] = [[]]
+            parent = data["parent"]
+            parent[-1].append(token)
+   parent = data.get("parent", None)
+   if parent and len(parent[-1]) == 0:
+      parent.pop()
+      if len(parent) == 0:
+         data["parent"] = None
+
+
 def _DecorateClass(env, scope):
    j = _GetScopeJ(env, env.i)
    token = env.GetToken(env.i)
    subscope = TokenDecorate(env, env.i+1, j-1)
    data = { "children": subscope.tokens }
+   _ParseClassScope(data, subscope)
+   _AbsorbDecorator(data, subscope, scope)
    t = Token("class", TokenType.KLASS, token.L, token.C, TokenLang.PYTHON, 2, data=data)
    scope.tokens.append(t)
    env.i = j
    return True
+
+
+def _ParseDefScope(data, scope):
+   for token in scope.tokens:
+      if token.T == TokenType.SPACE:
+         continue
+      if token.T == TokenType.BR:
+         continue
+      if token.T == TokenType.INDENT:
+         continue
+      if token.T == TokenType.COMMENT:
+         continue
+      if token.N == '\\':
+         continue
+      data["name"] = token.N
+      break
 
 
 def _DecorateDef(env, scope):
@@ -296,6 +384,8 @@ def _DecorateDef(env, scope):
    token = env.GetToken(env.i)
    subscope = TokenDecorate(env, env.i+1, j-1)
    data = { "children": subscope.tokens }
+   _ParseDefScope(data, subscope)
+   _AbsorbDecorator(data, subscope, scope)
    t = Token("def", TokenType.FUNC, token.L, token.C, TokenLang.PYTHON, 2, data=data)
    scope.tokens.append(t)
    env.i = j
@@ -374,7 +464,7 @@ def _DecorateWith(env, scope):
    return True
 
 
-def _DecorateAnnotation(env, scope):
+def _DecorateDecorator(env, scope):
    t0 = env.GetToken(env.i)
    data_path = []
    data = {
@@ -402,7 +492,7 @@ decorate_map_root = {
    "from": [_DecorateFrom],
    "import": [_DecorateImport],
    # TODO: @annotation
-   "@": [_DecorateAnnotation],
+   "@": [_DecorateDecorator],
    "class": [_DecorateClass],
    "def": [_DecorateDef],
    "if": [_DecorateIf],
@@ -448,8 +538,11 @@ if __name__ == "__main__":
          print(prefix, token.L+1, token.C+1, token)
          if token.data:
             if type(token.data) == dict:
+               dump_data = {}
+               for k, v in token.data.items():
+                  if k == 'children': continue
+                  dump_data[k] = v
+               print(prefix + '-- data:', dump_data)
                if 'children' in token.data:
                   dump(token.data["children"], indent+1)
-               else:
-                  print(prefix + '-- ', token.data)
    dump(tree)
